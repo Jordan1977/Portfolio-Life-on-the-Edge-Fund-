@@ -1,17 +1,4 @@
 #!/usr/bin/env python3
-"""
-Life on the Hedge Fund — build_dashboard.py
-Institutional Portfolio Analytics Terminal
-Trinity College Dublin · Investment Analysis · Academic Project
-
-Single source of truth:
-  1. Load holdings.csv
-  2. Download prices via yfinance
-  3. Compute analytics in Python
-  4. Generate docs/index.html (fully static HTML)
-  5. Write data/dashboard_snapshot.json
-"""
-
 from __future__ import annotations
 
 import json
@@ -29,12 +16,13 @@ import yfinance as yf
 warnings.filterwarnings("ignore")
 
 
-# ================================================================
-# NUMPY-SAFE JSON ENCODER
-# ================================================================
 class _NpEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        if isinstance(obj, pd.Series):
+            return obj.tolist()
+        if isinstance(obj, pd.Index):
             return obj.tolist()
         if isinstance(obj, np.integer):
             return int(obj)
@@ -58,9 +46,6 @@ def _dumps(obj) -> str:
     return json.dumps(obj, cls=_NpEncoder, ensure_ascii=False)
 
 
-# ================================================================
-# PATHS
-# ================================================================
 ROOT = Path(__file__).resolve().parent
 DOCS = ROOT / "docs"
 DATA = ROOT / "data"
@@ -70,10 +55,6 @@ DATA.mkdir(exist_ok=True)
 OUT_HTML = DOCS / "index.html"
 OUT_JSON = DATA / "dashboard_snapshot.json"
 
-
-# ================================================================
-# CONFIG
-# ================================================================
 CFG = {
     "portfolio_name": "Life on the Hedge Fund",
     "school": "Trinity College Dublin",
@@ -90,10 +71,6 @@ CFG = {
     "news_n": 10,
 }
 
-
-# ================================================================
-# COLOURS
-# ================================================================
 C = {
     "bg": "#07090F",
     "panel": "#0C1018",
@@ -145,9 +122,6 @@ SCENARIOS = [
 ]
 
 
-# ================================================================
-# HELPERS
-# ================================================================
 def _esc(s: str) -> str:
     return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
 
@@ -179,9 +153,6 @@ def _colors(arr, pos_col: str = None, neg_col: str = None) -> list:
     return [pc if float(v) >= 0 else nc for v in arr]
 
 
-# ================================================================
-# DATA
-# ================================================================
 def load_holdings(path: Path) -> pd.DataFrame:
     df = pd.read_csv(path)
     needed = {"ticker", "name", "quantity", "buy_price", "sector", "theme", "risk_bucket", "inception_date"}
@@ -247,9 +218,6 @@ def download_prices(tickers: list[str], start: str, end: str) -> pd.DataFrame:
     return close
 
 
-# ================================================================
-# ANALYTICS
-# ================================================================
 def build_frame(prices: pd.DataFrame, holdings: pd.DataFrame) -> dict:
     px = prices.copy()
     bench = CFG["benchmark"]
@@ -684,9 +652,6 @@ def build_intelligence(metrics: dict, pos: pd.DataFrame, structure: dict, stress
     ]
 
 
-# ================================================================
-# CHARTS
-# ================================================================
 def _layout(title: str, h: int = 360) -> dict:
     return dict(
         title=dict(
@@ -1024,9 +989,6 @@ def make_charts(frame: dict, metrics: dict, pos: pd.DataFrame,
     return charts
 
 
-# ================================================================
-# HTML COMPONENTS
-# ================================================================
 def _kpi(label: str, value: str, sub: str = "", tone: str = "b") -> str:
     return (
         f"<div class='kpi {tone}'>"
@@ -1191,9 +1153,6 @@ def _news_table(news: pd.DataFrame) -> str:
     return "\n".join(rows)
 
 
-# ================================================================
-# HTML
-# ================================================================
 def generate_html(
     holdings, frame, metrics, pos, structure, ledger,
     heatmap, stress, fcast_sum, fcast_paths, news, intel, charts
@@ -1643,16 +1602,47 @@ for (const [id, fig] of Object.entries(CHARTS)) {{
 </html>"""
 
 
-# ================================================================
-# SNAPSHOT
-# ================================================================
 def build_snapshot(metrics: dict, pos: pd.DataFrame, structure: dict, ledger: pd.DataFrame,
                    stress: pd.DataFrame, fcast_sum: pd.DataFrame, news: pd.DataFrame,
                    intel: list) -> dict:
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "config": CFG,
-        "metrics": metrics,
+        "metrics": {
+            "current_nav": metrics["current_nav"],
+            "daily_pnl": metrics["daily_pnl"],
+            "daily_return": metrics["daily_return"],
+            "total_pnl": metrics["total_pnl"],
+            "total_return": metrics["total_return"],
+            "bench_total_return": metrics["bench_total_return"],
+            "alpha": metrics["alpha"],
+            "ann_return": metrics["ann_return"],
+            "ann_bench": metrics["ann_bench"],
+            "vol": metrics["vol"],
+            "bvol": metrics["bvol"],
+            "ddev": metrics["ddev"],
+            "bddev": metrics["bddev"],
+            "sharpe": metrics["sharpe"],
+            "sortino": metrics["sortino"],
+            "beta": metrics["beta"],
+            "corr": metrics["corr"],
+            "jalpha": metrics["jalpha"],
+            "te": metrics["te"],
+            "ir": metrics["ir"],
+            "mdd": metrics["mdd"],
+            "bmdd": metrics["bmdd"],
+            "calmar": metrics["calmar"],
+            "var95": metrics["var95"],
+            "cvar95": metrics["cvar95"],
+            "skew": metrics["skew"],
+            "kurt": metrics["kurt"],
+            "treynor": metrics["treynor"],
+            "omega": metrics["omega"],
+            "upc": metrics["upc"],
+            "dnc": metrics["dnc"],
+            "hit": metrics["hit"],
+            "sessions": metrics["sessions"],
+        },
         "positions": pos.to_dict(orient="records"),
         "structure": {
             "sector": structure["sector"].to_dict(orient="records"),
@@ -1670,9 +1660,6 @@ def build_snapshot(metrics: dict, pos: pd.DataFrame, structure: dict, ledger: pd
     }
 
 
-# ================================================================
-# MAIN
-# ================================================================
 def main():
     holdings = load_holdings(ROOT / "holdings.csv")
     tickers = holdings["ticker"].tolist() + [CFG["benchmark"], CFG["bench2"]]
