@@ -9,13 +9,13 @@ on:
     - cron: "0 7,13,19 * * 1-5"
 
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
 concurrency:
   group: github-pages
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -28,8 +28,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Set up Pages
         uses: actions/configure-pages@v5
@@ -54,16 +52,6 @@ jobs:
 
       - name: Build dashboard
         run: python build_dashboard.py
-
-      - name: Commit generated files if changed
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/index.html data/dashboard_snapshot.json
-          if ! git diff --cached --quiet; then
-            git commit -m "chore: update generated dashboard"
-            git push
-          fi
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
